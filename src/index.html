@@ -4,24 +4,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>실시간 공유 메모 앱</title>
+    <title>공유 메모 앱</title>
     <style>
         body {
             font-family: Arial, sans-serif;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-            margin: 0;
-            background-color: #f0f0f0;
-        }
-
-        .container {
-            background-color: white;
+            max-width: 800px;
+            margin: 0 auto;
             padding: 20px;
-            border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-            width: 300px;
+            background-color: #f0f0f0;
         }
 
         h1 {
@@ -29,9 +19,17 @@
             color: #333;
         }
 
-        input,
+        #memoForm,
+        .memo {
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            margin-bottom: 20px;
+        }
+
         textarea,
-        button {
+        input {
             width: 100%;
             padding: 10px;
             margin-bottom: 10px;
@@ -44,6 +42,8 @@
             background-color: #4CAF50;
             color: white;
             border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
             cursor: pointer;
         }
 
@@ -51,40 +51,38 @@
             background-color: #45a049;
         }
 
-        #memoList {
-            margin-top: 20px;
+        .memo {
+            position: relative;
         }
 
-        .memo {
-            background-color: #f9f9f9;
-            border: 1px solid #ddd;
-            padding: 10px;
-            margin-bottom: 10px;
-            border-radius: 4px;
+        .editButton {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background-color: #008CBA;
+        }
+
+        .deleteButton {
+            position: absolute;
+            top: 10px;
+            right: 80px;
+            background-color: #f44336;
         }
     </style>
 </head>
 
 <body>
-    <div class="container">
-        <h1>실시간 공유 메모 앱</h1>
-        <div id="roomForm">
-            <input type="text" id="roomId" placeholder="방 ID 입력">
-            <button onclick="createOrJoinRoom()">방 만들기/참여하기</button>
-        </div>
-        <div id="memoForm" style="display:none;">
-            <textarea id="memoText" placeholder="새 메모 작성"></textarea>
-            <button onclick="addMemo()">메모 추가</button>
-            <div id="memoList"></div>
-        </div>
+    <h1>공유 메모 앱</h1>
+    <div id="memoForm">
+        <textarea id="memoText" placeholder="새 메모 작성" rows="4"></textarea>
+        <button onclick="addMemo()">메모 추가</button>
     </div>
+    <div id="memoList"></div>
 
     <script type="module">
-        // Import the functions you need from the SDKs you need
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
-        import { getDatabase, ref, push, onValue } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-database.js";
+        import { getDatabase, ref, push, onValue, update, remove } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-database.js";
 
-        // Your web app's Firebase configuration
         const firebaseConfig = {
             apiKey: "%%FIREBASE_KEY%%",
             authDomain: "share-memo-c3e14.firebaseapp.com",
@@ -94,26 +92,14 @@
             appId: "1:447699325611:web:58ee140045328ff12b5dee"
         };
 
-        // Initialize Firebase
         const app = initializeApp(firebaseConfig);
         const database = getDatabase(app);
 
-        let currentRoom = null;
+        const memoRef = ref(database, 'memos');
 
-        window.createOrJoinRoom = function () {
-            const roomId = document.getElementById('roomId').value.trim();
-            if (roomId !== '') {
-                currentRoom = roomId;
-                document.getElementById('roomForm').style.display = 'none';
-                document.getElementById('memoForm').style.display = 'block';
-                loadMemos();
-            }
-        }
-
-        window.addMemo = function () {
+        function addMemo() {
             const memoText = document.getElementById('memoText').value.trim();
-            if (memoText !== '' && currentRoom) {
-                const memoRef = ref(database, 'rooms/' + currentRoom + '/memos');
+            if (memoText !== '') {
                 push(memoRef, {
                     content: memoText,
                     timestamp: Date.now()
@@ -122,20 +108,47 @@
             }
         }
 
-        function loadMemos() {
-            const memoRef = ref(database, 'rooms/' + currentRoom + '/memos');
-            onValue(memoRef, (snapshot) => {
-                const memoList = document.getElementById('memoList');
-                memoList.innerHTML = '';
-                snapshot.forEach((childSnapshot) => {
-                    const memoData = childSnapshot.val();
-                    const memoDiv = document.createElement('div');
-                    memoDiv.className = 'memo';
-                    memoDiv.textContent = memoData.content;
-                    memoList.appendChild(memoDiv);
+        function editMemo(memoId, currentContent) {
+            const newContent = prompt("메모를 수정하세요:", currentContent);
+            if (newContent !== null && newContent.trim() !== '') {
+                update(ref(database, `memos/${memoId}`), {
+                    content: newContent,
+                    timestamp: Date.now()
                 });
+            }
+        }
+
+        function deleteMemo(memoId) {
+            if (confirm("정말로 이 메모를 삭제하시겠습니까?")) {
+                remove(ref(database, `memos/${memoId}`));
+            }
+        }
+
+        function displayMemos(memos) {
+            const memoList = document.getElementById('memoList');
+            memoList.innerHTML = '';
+            Object.entries(memos).forEach(([memoId, memoData]) => {
+                const memoDiv = document.createElement('div');
+                memoDiv.className = 'memo';
+                memoDiv.innerHTML = `
+                    <p>${memoData.content}</p>
+                    <button class="editButton" onclick="editMemo('${memoId}', '${memoData.content}')">수정</button>
+                    <button class="deleteButton" onclick="deleteMemo('${memoId}')">삭제</button>
+                `;
+                memoList.appendChild(memoDiv);
             });
         }
+
+        onValue(memoRef, (snapshot) => {
+            const memos = snapshot.val();
+            if (memos) {
+                displayMemos(memos);
+            }
+        });
+
+        window.addMemo = addMemo;
+        window.editMemo = editMemo;
+        window.deleteMemo = deleteMemo;
     </script>
 </body>
 
